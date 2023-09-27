@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <!-- <title>午时已到 & Feel Like</title> -->
+        <link rel="stylesheet" href="//unpkg.com/element-plus/dist/index.css" />
+        <link rel="stylesheet" href="./indes.css" />
+        <script src="//unpkg.com/vue@3"></script>
+        <script src="//unpkg.com/element-plus"></script>
+    </head>
+
+    <body>
+        <div id="app">
+            <div class="bottom">
+                <audio ref="audio" src="../assets/getvoice.mp3" controls></audio>
+            </div>
+            <div class="content" ref="content">
+                <ul class="lrc-list" ref="lrcul" :style="`transform: translateY(-${shifting}px)`">
+                    <li ref="lrcli" v-for="(item, index) in list" :key="index" :class="{active:index==currentIndex}">{{item.words}}</li>
+                </ul>
+            </div>
+        </div>
+    </body>
+</html>
+
+<script type="module">
+    import { lyricStr } from "./data.js";
+
+    const { createApp, ref, onMounted } = Vue;
+
+    createApp({
+        setup() {
+            const audio = ref(null);
+            const content = ref(null);
+            const lrcli = ref(null);
+            const lrcul = ref(null);
+            const list = ref([]);
+            const shifting = ref(""); //偏移距离
+            const currentIndex = ref(""); //歌词当前行
+
+            // 处理为数组对象格式
+            const parse = () => {
+                let lines = lyricStr.split("\n");
+                for (let i = 0; i < lines.length; i++) {
+                    let str = lines[i];
+                    let parts = str.split("]");
+                    let timeStr = parts[0].substring(1);
+                    let obj = {
+                        time: parseTime(timeStr),
+                        words: parts[1] || "",
+                    };
+                    list.value.push(obj);
+                }
+            };
+
+            // 处理时间为秒数
+            const parseTime = (timeStr) => {
+                let parts = timeStr.split(":");
+                return +parts[0] * 60 + +parts[1] || "";
+            };
+
+            parse();
+
+            //找到当前时间的下标 当前秒小于当前行歌词时间则说明还没到-1 如果到底部返回最后一句歌词的下标
+            const findIndex = () => {
+                let current = audio.value.currentTime;
+                for (let i = 0; i < list.value.length; i++) {
+                    if (current < list.value[i].time) {
+                        return i - 1;
+                    }
+                }
+                return list.value.length - 1;
+            };
+
+            onMounted(() => {
+                let contentHeight = content.value.clientHeight; //834
+                let lrcliHeight = lrcli.value[0].clientHeight; //30
+                let lrcuiHeight = lrcul.value.clientHeight; //ul高度
+
+                const setOff = () => {
+                    currentIndex.value = findIndex(); //当前歌词的下标
+                    let coms = lrcliHeight * currentIndex.value + lrcliHeight / 2 - contentHeight / 2;
+                    let maxs = lrcuiHeight - contentHeight;
+                    if (coms < 0) {
+                        coms = 0;
+                    }
+                    if (coms > maxs) {
+                        coms = maxs;
+                    }
+                    shifting.value = coms;
+                };
+                audio.value.addEventListener("timeupdate", setOff);
+            });
+
+            return { audio, content, lrcli, lrcul, list, shifting, currentIndex };
+        },
+    })
+        .use(ElementPlus)
+        .mount("#app");
+</script>
